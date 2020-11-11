@@ -3,6 +3,8 @@ import math
 import random
 import cv2
 import numpy as np
+import requests 
+import argparse
 
 def c_array(ctype, values):
     arr = (ctype*len(values))()
@@ -35,9 +37,8 @@ class METADATA(Structure):
                 ("names", POINTER(c_char_p))]
 
     
-
 #lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
-lib = CDLL("../libdarknet.so", RTLD_GLOBAL)
+lib = CDLL("/home/woong/s03p31b107/darknet/libdarknet.so", RTLD_GLOBAL)
 lib.network_width.argtypes = [c_void_p]
 lib.network_width.restype = c_int
 lib.network_height.argtypes = [c_void_p]
@@ -125,7 +126,7 @@ def classify(net, meta, im):
     res = sorted(res, key=lambda x: -x[1])
     return res
 
-def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
+def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=0.45):
     im = nparray_to_image(image) 
     
     num = c_int(0) 
@@ -139,7 +140,16 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
     for j in range(num): 
         for i in range(meta.classes): 
             if dets[j].prob[i] > 0: 
-                b = dets[j].bbox 
+                b = dets[j].bbox
+                # print(meta.names[i], b.x) 
+                if meta.names[i] == b'person' and b.x < 430:
+                    URL = 'http://localhost:8080/tracking'
+                    response = requests.get(URL + "?tid=" + str(uid)) 
+                    response.status_code 
+                    print("$start")
+                    print(response.text)
+                    print("$end")
+                    return
                 res.append((meta.names[i], dets[j].prob[i], (b.x, b.y, b.w, b.h))) 
     res = sorted(res, key=lambda x: -x[1]) 
     free_image(im) 
@@ -183,9 +193,18 @@ if __name__ == "__main__":
     # meta = load_meta("../cfg/coco.data")
     # r = detect(net, meta, "")
     # print r
+    ap = argparse.ArgumentParser()
+    ap.add_argument("inputnum",
+                    help="person uid")
+    args = ap.parse_args()
 
-    net = load_net(b"../cfg/yolov2.cfg", b"../yolo.weights", 0) 
-    meta = load_meta(b"../cfg/coco.data")
+    uid = args.inputnum
+
+    net = load_net(b"/home/woong/s03p31b107/darknet/cfg/yolov2.cfg", b"/home/woong/s03p31b107/darknet/yolo.weights", 0) 
+    meta = load_meta(b"/home/woong/s03p31b107/darknet/cfg/coco.data")
+
+    # net = load_net("../cfg/yolov2.cfg", "../yolo.weights", 0) 
+    # meta = load_meta("../cfg/coco.data")
 
     # net = load_net("../cfg/yolov2.cfg", "../yolo.weights", 0)
     # meta = load_meta("../cfg/coco.data")
@@ -198,12 +217,9 @@ if __name__ == "__main__":
         if not ret:
             break
         #print(type(frame))
-        r = detect(net, meta, frame) 
+        r = detect(net, meta, frame)
         boxes = convert_box_value(r) 
         draw(frame, boxes) 
-        cv2.imshow('frame', frame) 
-        if cv2.waitKey(1) & 0xFF == ord('q'): 
+        cv2.imshow('frame', frame)
+        if (cv2.waitKey(1) & 0xFF == ord('q')): 
             break
-
-    
-
